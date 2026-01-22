@@ -1,11 +1,12 @@
-import { Agent, AgentNamespace } from "agents";
+import { DurableObject } from "cloudflare:workers";
 
 export interface Env {
-    CHAT_AGENT: AgentNamespace<ChatAgent>;
+    CHAT_AGENT: DurableObjectNamespace<ChatAgent>;
     AI: Ai;
     SUMMARY_WORKFLOW: {
         create(options: { id: string; params: { agentId: string } }): Promise<void>;
     };
+    ASSETS?: Fetcher;
 }
 
 interface Message {
@@ -48,9 +49,15 @@ You are powered by Llama 3.3 running on Cloudflare Workers AI.`;
 const MESSAGES_TO_KEEP = 30;
 const MESSAGES_BEFORE_SUMMARY = 8;
 
-export class ChatAgent extends Agent<Env> {
+export class ChatAgent extends DurableObject<Env> {
     private messageCountSinceUpdate = 0;
     private initialized = false;
+    private sqlStorage: SqlStorage;
+
+    constructor(ctx: DurableObjectState, env: Env) {
+        super(ctx, env);
+        this.sqlStorage = ctx.storage.sql;
+    }
 
     private ensureInitialized(): void {
         if (this.initialized) return;
@@ -61,63 +68,110 @@ export class ChatAgent extends Agent<Env> {
     }
 
     private initializeDatabase(): void {
-        this.sql`
+        this.sqlStorage.exec(`
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         timestamp INTEGER NOT NULL
       )
-    `;
+    `);
 
-        this.sql`
+        this.sqlStorage.exec(`
       CREATE TABLE IF NOT EXISTS profile (
         id INTEGER PRIMARY KEY DEFAULT 1,
         summary TEXT DEFAULT '',
         updated_at INTEGER,
         message_count_since_update INTEGER DEFAULT 0
       )
-    `;
+    `);
 
-        const existing = this.sql<{ count: number }>`SELECT COUNT(*) as count FROM profile`;
-        if (existing.length === 0 || existing[0].count === 0) {
-            this.sql`INSERT INTO profile (id, summary, message_count_since_update) VALUES (1, '', 0)`;
+        const existing = this.sqlStorage.exec("SELECT COUNT(*) as count FROM profile").toArray();
+        if (existing.length === 0 || (existing[0] as { count: number }).count === 0) {
+            this.sqlStorage.exec("INSERT INTO profile (id, summary, message_count_since_update) VALUES (1, '', 0)");
         }
     }
 
-    async onConnect(connection: WebSocket): Promise<void> {
+    async fetch(request: Request): Promise<Response> {
         this.ensureInitialized();
-        console.log("Client connected to ChatAgent");
+
+        const url = new URL(request.url);
+
+        // Internal API for workflow to get messages
+        if (url.pathname === "/getMessages") {
+            const messages = this.getRecentMessages(MESSAGES_TO_KEEP);
+            return new Response(JSON.stringify(messages), {
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        // Internal API for workflow to update profile
+        if (url.pathname === "/updateProfile" && request.method === "POST") {
+            const body = await request.json() as { summary: string };
+            this.updateProfileSummary(body.summary);
+            return new Response(JSON.stringify({ success: true }), {
+                headers: { "Content-Type": "application/json" }
+            });
+        }
+
+        // Handle WebSocket upgrade
+        const upgradeHeader = request.headers.get("Upgrade");
+        if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
+            return new Response("Expected WebSocket upgrade", { status: 426 });
+        }
+
+        const pair = new WebSocketPair();
+        const [client, server] = Object.values(pair);
+
+        this.ctx.acceptWebSocket(server);
 
         const history = this.getRecentMessages(10);
         if (history.length > 0) {
-            connection.send(JSON.stringify({
+            server.send(JSON.stringify({
                 type: "history",
                 messages: history.map(m => ({ role: m.role, content: m.content }))
             } as StreamChunk));
         }
 
-        connection.send(JSON.stringify({ type: "connected" } as StreamChunk));
+        server.send(JSON.stringify({ type: "connected" } as StreamChunk));
+
+        return new Response(null, {
+            status: 101,
+            webSocket: client,
+        });
     }
 
-    async onMessage(connection: WebSocket, message: string): Promise<void> {
+    async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
         this.ensureInitialized();
+
+        if (typeof message !== "string") {
+            return;
+        }
+
         try {
             const data: ChatMessage = JSON.parse(message);
 
             if (data.type === "user_message" && data.text) {
-                await this.handleUserMessage(connection, data.text);
+                await this.handleUserMessage(ws, data.text);
             }
         } catch (error) {
             console.error("Error processing message:", error);
-            connection.send(JSON.stringify({
+            ws.send(JSON.stringify({
                 type: "error",
                 error: "Failed to process message"
             } as StreamChunk));
         }
     }
 
-    private async handleUserMessage(connection: WebSocket, text: string): Promise<void> {
+    async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+        console.log(`WebSocket closed: ${code} - ${reason} - wasClean: ${wasClean}`);
+    }
+
+    async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+        console.error("WebSocket error:", error);
+    }
+
+    private async handleUserMessage(ws: WebSocket, text: string): Promise<void> {
         this.storeMessage("user", text);
         this.messageCountSinceUpdate++;
         this.updateMessageCount(this.messageCountSinceUpdate);
@@ -153,7 +207,7 @@ export class ChatAgent extends Agent<Env> {
                         const parsed = JSON.parse(jsonStr);
                         if (parsed.response) {
                             fullResponse += parsed.response;
-                            connection.send(JSON.stringify({
+                            ws.send(JSON.stringify({
                                 type: "chunk",
                                 content: parsed.response
                             } as StreamChunk));
@@ -165,7 +219,7 @@ export class ChatAgent extends Agent<Env> {
             }
 
             this.storeMessage("assistant", fullResponse);
-            connection.send(JSON.stringify({ type: "done" } as StreamChunk));
+            ws.send(JSON.stringify({ type: "done" } as StreamChunk));
 
             if (this.messageCountSinceUpdate >= MESSAGES_BEFORE_SUMMARY) {
                 await this.triggerSummaryWorkflow();
@@ -173,7 +227,7 @@ export class ChatAgent extends Agent<Env> {
 
         } catch (error) {
             console.error("AI call failed:", error);
-            connection.send(JSON.stringify({
+            ws.send(JSON.stringify({
                 type: "error",
                 error: "Failed to generate response"
             } as StreamChunk));
@@ -201,31 +255,37 @@ export class ChatAgent extends Agent<Env> {
 
     private storeMessage(role: string, content: string): void {
         const timestamp = Date.now();
-        this.sql`INSERT INTO messages (role, content, timestamp) VALUES (${role}, ${content}, ${timestamp})`;
+        this.sqlStorage.exec(
+            "INSERT INTO messages (role, content, timestamp) VALUES (?, ?, ?)",
+            role, content, timestamp
+        );
     }
 
     private getRecentMessages(limit: number): Message[] {
-        const messages = this.sql<Message>`
-      SELECT id, role, content, timestamp 
-      FROM messages 
-      ORDER BY id DESC 
-      LIMIT ${limit}
-    `;
+        const cursor = this.sqlStorage.exec(
+            "SELECT id, role, content, timestamp FROM messages ORDER BY id DESC LIMIT ?",
+            limit
+        );
+        const messages = cursor.toArray() as unknown as Message[];
         return messages.reverse();
     }
 
     private getProfile(): Profile | null {
-        const results = this.sql<Profile>`SELECT * FROM profile WHERE id = 1`;
+        const cursor = this.sqlStorage.exec("SELECT * FROM profile WHERE id = 1");
+        const results = cursor.toArray() as unknown as Profile[];
         return results.length > 0 ? results[0] : null;
     }
 
     private updateMessageCount(count: number): void {
-        this.sql`UPDATE profile SET message_count_since_update = ${count} WHERE id = 1`;
+        this.sqlStorage.exec(
+            "UPDATE profile SET message_count_since_update = ? WHERE id = 1",
+            count
+        );
     }
 
     private async triggerSummaryWorkflow(): Promise<void> {
         try {
-            const agentId = this.name;
+            const agentId = this.ctx.id.toString();
             await this.env.SUMMARY_WORKFLOW.create({
                 id: `summary-${agentId}-${Date.now()}`,
                 params: { agentId }
@@ -236,13 +296,12 @@ export class ChatAgent extends Agent<Env> {
         }
     }
 
-    getMessagesForSummary(): Message[] {
-        return this.getRecentMessages(MESSAGES_TO_KEEP);
-    }
-
-    updateProfileSummary(summary: string): void {
+    private updateProfileSummary(summary: string): void {
         const now = Date.now();
-        this.sql`UPDATE profile SET summary = ${summary}, updated_at = ${now}, message_count_since_update = 0 WHERE id = 1`;
+        this.sqlStorage.exec(
+            "UPDATE profile SET summary = ?, updated_at = ?, message_count_since_update = 0 WHERE id = 1",
+            summary, now
+        );
         this.messageCountSinceUpdate = 0;
     }
 }
