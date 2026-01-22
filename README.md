@@ -14,26 +14,26 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Cloudflare Edge                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────┐    WebSocket     ┌────────────────────────┐  │
-│  │  Pages UI    │◄────────────────►│     ChatAgent (DO)     │  │
-│  │  (Frontend)  │                  │                        │  │
-│  └──────────────┘                  │  ┌──────────────────┐  │  │
-│                                    │  │  SQLite Storage  │  │  │
-│                                    │  │  - messages      │  │  │
-│                                    │  │  - profile       │  │  │
-│                                    │  └──────────────────┘  │  │
-│                                    │                        │  │
-│                                    │  ┌──────────────────┐  │  │
-│  ┌──────────────┐                  │  │   Workers AI     │  │  │
-│  │  Workflow    │◄─────────────────│  │   Llama 3.3      │  │  │
-│  │  (Summary)   │                  │  └──────────────────┘  │  │
-│  └──────────────┘                  └────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+
+                        Cloudflare Edge                          
+
+                                                                 
+      WebSocket       
+    Pages UI         ChatAgent (DO)       
+    (Frontend)                                              
+                          
+                                        SQLite Storage      
+                                        - messages          
+                                        - profile           
+                                          
+                                                              
+                                          
+                         Workers AI         
+    Workflow         Llama 3.3          
+    (Summary)                           
+                      
+                                                                 
+
 ```
 
 ## Features
@@ -49,17 +49,17 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 
 ```
 .
-├── src/
-│   ├── index.ts       # Worker entry point, routes requests
-│   ├── agent.ts       # ChatAgent Durable Object class
-│   └── workflow.ts    # Memory summarization workflow
-├── public/
-│   ├── index.html     # Chat UI
-│   ├── styles.css     # Styling
-│   └── app.js         # WebSocket client
-├── wrangler.jsonc     # Cloudflare configuration
-├── package.json
-└── tsconfig.json
+ src/
+    index.ts       # Worker entry point, routes requests
+    agent.ts       # ChatAgent Durable Object class
+    workflow.ts    # Memory summarization workflow
+ public/
+    index.html     # Chat UI
+    styles.css     # Styling
+    app.js         # WebSocket client
+ wrangler.jsonc     # Cloudflare configuration
+ package.json
+ tsconfig.json
 ```
 
 ## Prerequisites
