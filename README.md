@@ -6,34 +6,34 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 
 | Requirement | Implementation | Status |
 |-------------|----------------|--------|
-| **LLM** | Llama 3.3 70B on Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) | Yes |
-| **Workflow/Coordination** | Cloudflare Workflows for automated memory summarization | Yes |
-| **User Input** | Real-time chat via WebSocket (Pages UI + Durable Object backend) | Yes |
-| **Memory/State** | SQLite-backed Durable Objects via Storage SQL API | Yes |
+| LLM | Llama 3.3 70B on Workers AI (@cf/meta/llama-3.3-70b-instruct-fp8-fast) | Yes |
+| Workflow/Coordination | Cloudflare Workflows for automated memory summarization | Yes |
+| User Input | Real-time chat via WebSocket (Pages UI + Durable Object backend) | Yes |
+| Memory/State | SQLite-backed Durable Objects via Storage SQL API | Yes |
 
 ## Architecture
 
 ```
-
-                        Cloudflare Edge                          
-
-                                                                 
-      WebSocket       
-    Pages UI         ChatAgent (DO)       
-    (Frontend)                                              
-                          
-                                        SQLite Storage      
-                                        - messages          
-                                        - profile           
-                                          
-                                                              
-                                          
-                         Workers AI         
-    Workflow         Llama 3.3          
-    (Summary)                           
-                      
-                                                                 
-
++-----------------------------------------------------------------+
+|                        Cloudflare Edge                          |
++-----------------------------------------------------------------+
+|                                                                 |
+|  +--------------+    WebSocket     +------------------------+  |
+|  |  Pages UI    |<---------------->|     ChatAgent (DO)     |  |
+|  |  (Frontend)  |                  |                        |  |
+|  +--------------+                  |  +------------------+  |  |
+|                                    |  |  SQLite Storage  |  |  |
+|                                    |  |  - messages      |  |  |
+|                                    |  |  - profile       |  |  |
+|                                    |  +------------------+  |  |
+|                                    |                        |  |
+|                                    |  +------------------+  |  |
+|  +--------------+                  |  |   Workers AI     |  |  |
+|  |  Workflow    |<-----------------|  |   Llama 3.3      |  |  |
+|  |  (Summary)   |                  |  +------------------+  |  |
+|  +--------------+                  +------------------------+  |
+|                                                                 |
++-----------------------------------------------------------------+
 ```
 
 ## Features
@@ -49,17 +49,17 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 
 ```
 .
- src/
-    index.ts       # Worker entry point, routes requests
-    agent.ts       # ChatAgent Durable Object class
-    workflow.ts    # Memory summarization workflow
- public/
-    index.html     # Chat UI
-    styles.css     # Styling
-    app.js         # WebSocket client
- wrangler.jsonc     # Cloudflare configuration
- package.json
- tsconfig.json
+├── src/
+│   ├── index.ts       # Worker entry point, routes requests
+│   ├── agent.ts       # ChatAgent Durable Object class
+│   └── workflow.ts    # Memory summarization workflow
+├── public/
+│   ├── index.html     # Chat UI
+│   ├── styles.css     # Styling
+│   └── app.js         # WebSocket client
+├── wrangler.jsonc     # Cloudflare configuration
+├── package.json
+└── tsconfig.json
 ```
 
 ## Prerequisites
@@ -116,9 +116,9 @@ This deploys:
 ## How It Works
 
 ### ChatAgent (Durable Object)
-- Extends the `DurableObject` class
+- Extends the DurableObject class
 - Uses the built-in SQLite database for persistence
-- Stores profile summary in SQLite `profile` table
+- Stores profile summary in SQLite profile table
 - Handles WebSocket connections for real-time chat
 - Streams responses from Workers AI Llama 3.3
 
