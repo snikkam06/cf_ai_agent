@@ -9,7 +9,7 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 | **LLM** | Llama 3.3 70B on Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) | Yes |
 | **Workflow/Coordination** | Cloudflare Workflows for automated memory summarization | Yes |
 | **User Input** | Real-time chat via WebSocket (Pages UI + Durable Object backend) | Yes |
-| **Memory/State** | SQLite-backed Durable Objects via Agents SDK SQL API | Yes |
+| **Memory/State** | SQLite-backed Durable Objects via Storage SQL API | Yes |
 
 ## Architecture
 
@@ -116,8 +116,8 @@ This deploys:
 ## How It Works
 
 ### ChatAgent (Durable Object)
-- Extends the Agents SDK `Agent` class
-- Stores messages in SQLite `messages` table
+- Extends the `DurableObject` class
+- Uses the built-in SQLite database for persistence
 - Stores profile summary in SQLite `profile` table
 - Handles WebSocket connections for real-time chat
 - Streams responses from Workers AI Llama 3.3
@@ -160,7 +160,6 @@ GET /api/health
 ## Technologies Used
 
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/)
-- [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/)
 - [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
 - [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) - Llama 3.3 70B
 - [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
