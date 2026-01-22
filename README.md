@@ -2,14 +2,14 @@
 
 A production-ready AI-powered chat application built on Cloudflare's developer platform, demonstrating the full stack of AI agent capabilities.
 
-## Requirements Checklist ✅
+## Requirements Checklist
 
 | Requirement | Implementation | Status |
 |-------------|----------------|--------|
-| **LLM** | Llama 3.3 70B on Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) | ✅ |
-| **Workflow/Coordination** | Cloudflare Workflows for automated memory summarization | ✅ |
-| **User Input** | Real-time chat via WebSocket (Pages UI + Durable Object backend) | ✅ |
-| **Memory/State** | SQLite-backed Durable Objects via Agents SDK SQL API | ✅ |
+| **LLM** | Llama 3.3 70B on Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) | Yes |
+| **Workflow/Coordination** | Cloudflare Workflows for automated memory summarization | Yes |
+| **User Input** | Real-time chat via WebSocket (Pages UI + Durable Object backend) | Yes |
+| **Memory/State** | SQLite-backed Durable Objects via Agents SDK SQL API | Yes |
 
 ## Architecture
 
@@ -38,12 +38,12 @@ A production-ready AI-powered chat application built on Cloudflare's developer p
 
 ## Features
 
-- **🚀 Streaming Responses**: Real-time token-by-token streaming from Llama 3.3
-- **💾 Persistent Memory**: Conversation history stored in SQLite-backed Durable Objects
-- **🧠 Smart Memory**: Automatic profile summarization via Workflows (triggered every 8 messages)
-- **🔄 Session Management**: Sessions persist across browser refreshes via localStorage
-- **⚡ Edge-Powered**: Low-latency responses from Cloudflare's global network
-- **🎨 Modern UI**: Polished chat interface with dark theme and smooth animations
+- **Streaming Responses**: Real-time token-by-token streaming from Llama 3.3
+- **Persistent Memory**: Conversation history stored in SQLite-backed Durable Objects
+- **Smart Memory**: Automatic profile summarization via Workflows (triggered every 8 messages)
+- **Session Management**: Sessions persist across browser refreshes via localStorage
+- **Edge-Powered**: Low-latency responses from Cloudflare's global network
+- **Modern UI**: Polished chat interface with dark theme and smooth animations
 
 ## Project Structure
 
