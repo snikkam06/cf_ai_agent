@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-ai-chat-agent",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Durable Objects binding for the ChatAgent
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT_AGENT",
+        "class_name": "ChatAgent"
+      }
+    ]
+  },
+
+  // SQLite migration for Durable Objects
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ChatAgent"]
+    }
+  ],
+
+  // Workers AI binding
+  "ai": {
+    "binding": "AI"
+  },
+
+  // Workflows binding for memory summarization
+  "workflows": [
+    {
+      "name": "SUMMARY_WORKFLOW",
+      "class_name": "SummaryWorkflow",
+      "binding": "SUMMARY_WORKFLOW"
+    }
+  ],
+
+  // Serve static assets from public directory
+  "assets": {
+    "directory": "./public"
+  }
+}
