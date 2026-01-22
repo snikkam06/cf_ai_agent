@@ -192,15 +192,21 @@ export class ChatAgent extends DurableObject<Env> {
             const reader = (stream as ReadableStream).getReader();
             const decoder = new TextDecoder();
 
+            let buffer = "";
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split("\n").filter(line => line.startsWith("data: "));
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+
+                // Keep the last line in the buffer as it might be incomplete
+                buffer = lines.pop() || "";
 
                 for (const line of lines) {
-                    const jsonStr = line.slice(6);
+                    if (!line.startsWith("data: ")) continue;
+
+                    const jsonStr = line.slice(6).trim();
                     if (jsonStr === "[DONE]") continue;
 
                     try {
@@ -212,8 +218,8 @@ export class ChatAgent extends DurableObject<Env> {
                                 content: parsed.response
                             } as StreamChunk));
                         }
-                    } catch {
-                        // Skip malformed JSON chunks
+                    } catch (e) {
+                        console.error("Error parsing JSON chunk:", e);
                     }
                 }
             }
